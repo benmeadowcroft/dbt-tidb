@@ -49,7 +49,7 @@ class TiDBAdapter(SQLAdapter):
         kwargs = {"schema_relation": schema_relation}
         try:
             results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
-        except dbt.exceptions.RuntimeException as e:
+        except dbt.exceptions.DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
             if f"TiDB database '{schema_relation}' not found" in errmsg:
                 return []
@@ -61,7 +61,7 @@ class TiDBAdapter(SQLAdapter):
         relations = []
         for row in results:
             if len(row) != 4:
-                raise dbt.exceptions.RuntimeException(
+                raise dbt.exceptions.DbtRuntimeError(
                     "Invalid value from "
                     f'"tidb__list_relations_without_caching({kwargs})", '
                     f"got {len(row)} values, expected 4"
@@ -94,9 +94,8 @@ class TiDBAdapter(SQLAdapter):
     def get_relation(
         self, database: str, schema: str, identifier: str
     ) -> Optional[BaseRelation]:
-        if not self.Relation.include_policy.database:
+        if not self.Relation.get_default_include_policy().database:
             database = None
-
         return super().get_relation(database, schema, identifier)
 
     def parse_show_columns(
@@ -160,7 +159,7 @@ class TiDBAdapter(SQLAdapter):
 
         columns: List[Dict[str, Any]] = []
         for relation in self.list_relations(database, schema):
-            logger.debug("Getting table schema for relation {}", relation)
+            logger.debug("Getting table schema for relation {}", relation.name)
             columns.extend(self._get_columns_for_catalog(relation))
         return agate.Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
 
@@ -205,7 +204,7 @@ class TiDBAdapter(SQLAdapter):
         elif location == "prepend":
             return f"concat({value}, '{add_to}')"
         else:
-            raise dbt.exceptions.RuntimeException(
+            raise dbt.exceptions.DbtRuntimeError(
                 f'Got an unexpected location value of "{location}"'
             )
 
